@@ -19,6 +19,11 @@ __pycache__/
 data/raw/
 data/processed/
 
+# Modelos grandes
+models/modelo_inventario.pkl
+# O ignorar todos los modelos grandes si quieres
+# models/*.pkl
+
 # Archivos temporales
 *.log
 *.tmp

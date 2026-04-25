@@ -4,6 +4,8 @@ from sqlalchemy import create_engine
 from sklearn.ensemble import RandomForestRegressor
 import plotly.graph_objects as go
 from PIL import Image
+import numpy as np
+import matplotlib.pyplot as plt
 import os
 
 # -----------------------
@@ -52,6 +54,20 @@ df = df.dropna(subset=["costo", "precio de venta"])
 df = df[(df["costo"] > 0) & (df["precio de venta"] > 0)]
 
 # -----------------------
+# FILTROS PROTECCIÓN
+# -----------------------
+df = df[df["departamento"].isin(["JOYERIA", "RELOJERIA"])]
+proveedores_permitidos = [
+    "AUDEMARS PIGUET ET CIE.", "BELL & ROSS USA", "CHRONO AG", "CITIZEN LATINAMERICA CORP",
+    "DAMIANI S.P.A", "DJULA S.A.R.L.", "MESSIKA USA INC", "MONTBLANC SIMPLO GMBH",
+    "POMELLATO USA INC", "RICHARD PERLT VENEZUELA", "RICHEMONT BAUME MERCIER",
+    "RICHEMONT NORTH AMERICA INC (IWC)", "RICHEMONT NORTH AMERICA INC (PANERAI)",
+    "RICHEMONT NORTH AMERICA INC (CARTIER)", "ROBERTO COIN S.P.A.", "SONGA ANTONIO SPA",
+    "SWATCH AG", "TAG HEUER", "ZENITH"
+]
+df = df[df["proveedor_correcto"].isin(proveedores_permitidos)]
+
+# -----------------------
 # MODELO ML
 # -----------------------
 @st.cache_resource
@@ -63,48 +79,14 @@ def train_model(data):
 model = train_model(df)
 
 # -----------------------
-# SIDEBAR CASCADA CON FILTRO DE PROTECCIÓN
+# SIDEBAR CASCADA
 # -----------------------
 st.sidebar.header("AUDIT INPUTS")
-
-# Solo estos departamentos
-departamentos_visibles = ["RELOJERIA", "JOYERIA"]
-dep = st.sidebar.selectbox("Departamento", departamentos_visibles)
+dep = st.sidebar.selectbox("Departamento", sorted(df["departamento"].dropna().unique()))
 df_dep = df[df["departamento"] == dep]
 
-# Solo estos proveedores
-proveedores_visibles = [
-    "AUDEMARS PIGUET ET CIE.",
-    "BELL & ROSS USA",
-    "CHRONO AG",
-    "CITIZEN LATINAMERICA CORP",
-    "DAMIANI S.P.A",
-    "DJULA S.A.R.L.",
-    "MESSIKA USA INC",
-    "MONTBLANC SIMPLO GMBH",
-    "POMELLATO USA INC",
-    "RICHARD PERLT VENEZUELA",
-    "RICHEMONT BAUME MERCIER",
-    "RICHEMONT NORTH AMERICA INC (IWC)",
-    "RICHEMONT NORTH AMERICA INC (PANERAI)",
-    "RICHEMONT NORTH AMERICA INC (RICHEMONT NORTH AMERICA INC (CARTIER))",
-    "ROBERTO COIN S.P.A.",
-    "SONGA ANTONIO SPA",
-    "SWATCH AG",
-    "TAG HEUER",
-    "ZENITH"
-]
-df_dep_filtrado = df_dep[df_dep["proveedor_correcto"].isin(proveedores_visibles)]
-
-if df_dep_filtrado.empty:
-    st.sidebar.warning("No hay datos disponibles para este filtro")
-    st.stop()
-
-prov = st.sidebar.selectbox(
-    "Proveedor",
-    sorted(df_dep_filtrado["proveedor_correcto"].dropna().unique())
-)
-df_prov = df_dep_filtrado[df_dep_filtrado["proveedor_correcto"] == prov]
+prov = st.sidebar.selectbox("Proveedor", sorted(df_dep["proveedor_correcto"].dropna().unique()))
+df_prov = df_dep[df_dep["proveedor_correcto"] == prov]
 
 marca = st.sidebar.selectbox("Marca", sorted(df_prov["marca_correcta"].dropna().unique()))
 df_marca = df_prov[df_prov["marca_correcta"] == marca]
@@ -167,6 +149,9 @@ with left:
     trend_df = pd.DataFrame({"Global": global_trend, "SKU": sku_trend}).fillna(0).sort_index()
     st.line_chart(trend_df)
 
+    # -----------------------
+    # SCORING DE RIESGO IA (GAUGE)
+    # -----------------------
     st.markdown("### Scoring de Riesgo IA")
     riesgo_pct = max(min(abs(desviacion), 100), 0)
     fig_gauge = go.Figure(go.Indicator(
@@ -187,6 +172,18 @@ with left:
     ))
     fig_gauge.update_layout(paper_bgcolor="#1c1c1c", font_color="white", height=300)
     st.plotly_chart(fig_gauge, use_container_width=True)
+
+    # -----------------------
+    # LOGO EN PANEL IZQUIERDO INFERIOR
+    # -----------------------
+    logo_path = "/Users/mariafiguera/Downloads/ProyectoDataScience/asset/logomgf.png"
+    if os.path.exists(logo_path):
+        logo_img = Image.open(logo_path)
+        st.image(logo_img, width=150)  # tamaño más pequeño en el panel izquierdo inferior
+    else:
+        st.warning("⚠️ Logo no encontrado.")
+
+    st.markdown("<div class='footer'>© 2026 MGF - Venezuela</div>", unsafe_allow_html=True)
 
 # -----------------------
 # PANEL DERECHO: BRAND PERFORMANCE
@@ -212,18 +209,3 @@ with right:
     st.markdown(f"<div class='metric-box'><div class='metric-title'>Tier Precio</div><div class='metric-value'>Alta Gama</div></div>", unsafe_allow_html=True)
     st.markdown(f"<div class='metric-box'><div class='metric-title'>Confianza IA</div><div class='metric-value'>83.9%</div></div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
-
-# -----------------------
-# LOGO Y PROPIEDAD INTELECTUAL EN EL SIDEBAR
-# -----------------------
-logo_path = "/Users/mariafiguera/Downloads/ProyectoDataScience/asset/logomgf.png"
-if os.path.exists(logo_path):
-    logo_img = Image.open(logo_path)
-    st.sidebar.image(logo_img, width=200)
-else:
-    st.sidebar.warning("⚠️ Logo no encontrado. Verifica la ruta y nombre del archivo.")
-
-st.sidebar.markdown(
-    "<div class='footer'>© 2026 MGF - Propiedad Intelectual - Venezuela</div>",
-    unsafe_allow_html=True
-)

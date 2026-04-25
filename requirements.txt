@@ -1,0 +1,14 @@
+pandas
+numpy
+sqlalchemy
+openpyxl
+requests
+beautifulsoup4
+lxml
+jupyter
+matplotlib
+seaborn
+scikit-learn
+streamlit
+plotly
+Pillow

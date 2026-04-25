@@ -1,0 +1,36 @@
+# Entornos virtuales
+.venv/
+venv/
+env/
+
+# Archivos de Python compilados
+__pycache__/
+*.pyc
+
+# Archivos de Jupyter
+.ipynb_checkpoints/
+
+# Bases de datos
+*.db
+*.sqlite
+*.sqlite3
+
+# Datos crudos y procesados
+data/raw/
+data/processed/
+
+# Archivos temporales
+*.log
+*.tmp
+*.cache
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de configuración locales
+.env
+*.env
+
+# Carpetas de VS Code
+.vscode/

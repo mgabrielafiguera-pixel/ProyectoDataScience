@@ -11,6 +11,7 @@ import joblib
 # -----------------------
 # ANEXO PARA RENDER: CARGA DE MODELOS DESDE DRIVE
 # -----------------------
+# Crear carpetas si no existen
 if not os.path.exists('models'): os.makedirs('models')
 if not os.path.exists('sql'): os.makedirs('sql')
 if not os.path.exists('asset'): os.makedirs('asset')
@@ -20,17 +21,23 @@ def download_from_drive(file_id, output):
         url = f'https://drive.google.com/uc?id={file_id}'
         gdown.download(url, output, quiet=False)
 
-# SUSTITUYE CON TUS IDs REALES DE DRIVE
-ID_DB = "1NGLSf1WipWBQA2qflhv2B7SAgDotIM4g"
-ID_LOGO = "TU_ID_LOGO"
-# Ejemplo para un encoder, puedes repetir para los que necesites
-ID_SCALER = "TU_ID_SCALER" 
+# Diccionario con tus archivos .pkl en Drive
+SCALERS_DRIVE = {
+    "random_forest_model.pkl": "15QYl2ozFjLOJ_ppB-6959imy_WAIfmw7",
+    "encoder_proveedor.pkl": "1rjDLAB8od0vQ1m0HsrVvT0aomNHcV7Nv",
+    "encoder_sku.pkl": "1gqEmlwaoosbupB2-ZD2-rSXj70CpU0sa",
+    "encoder_marca.pkl": "1aWfvtGUZqsIhXcRcfyFKstlwFX8v8iu0",
+    "encoder_departamento.pkl": "1TfXHcygIpq8QpxBfLSMSWGrzx5dUWj5t",
+    "encoder_material.pkl": "15eCv_mth8oUaDlEiyd8xHMR-Tltfl3pn",
+    "encoder_categoria_lottus.pkl": "126yZfMd4mNJ7pifG-d-LleizMkd32adD"
+}
 
-download_from_drive(ID_DB, "sql/database.db")
-download_from_drive(ID_LOGO, "asset/logomgf.png")
+# Ejecutar descargas de los modelos desde Drive
+for nombre_archivo, id_drive in SCALERS_DRIVE.items():
+    download_from_drive(id_drive, f"models/{nombre_archivo}")
 
 # -----------------------
-# CONFIG
+# CONFIGURACIÓN DE PÁGINA Y ESTILOS
 # -----------------------
 st.set_page_config(page_title="SMARTAUDIT AI", layout="wide")
 
@@ -55,7 +62,7 @@ h1, h2, h3 { color: white; font-weight: bold; }
 st.title("SMARTAUDIT AI – Luxury Price Audit")
 
 # -----------------------
-# DATABASE (Ruta relativa para Render)
+# DATABASE (Ruta local de GitHub)
 # -----------------------
 DB_PATH = "sql/database.db"
 engine = create_engine(f"sqlite:///{DB_PATH}")
@@ -85,6 +92,12 @@ model = train_model(df)
 # SIDEBAR CASCADA
 # -----------------------
 st.sidebar.header("AUDIT INPUTS")
+
+# Logo (Ruta relativa directa de GitHub)
+logo_path = "asset/logomgf.png"
+if os.path.exists(logo_path):
+    st.sidebar.image(Image.open(logo_path), width=200)
+
 departamentos_visibles = ["RELOJERIA", "JOYERIA"]
 dep = st.sidebar.selectbox("Departamento", departamentos_visibles)
 df_dep = df[df["departamento"] == dep]
@@ -119,7 +132,6 @@ margen_pct = margen / precio_input * 100
 # -----------------------
 left, right = st.columns([2,1])
 
-# PANEL IZQUIERDO (RESTAURADO COMPLETO)
 with left:
     c1, c2, c3 = st.columns(3)
     c1.markdown(f"<div class='metric-box'><div class='metric-title'>PRECIO IA</div><div class='metric-value'>${precio_ia:,.0f}</div></div>", unsafe_allow_html=True)
@@ -134,7 +146,6 @@ with left:
         alert, text = "alert-yellow", "🟡 NOTA: DESVIACIÓN MEDIA. Se establece protocolo de revisión."
     st.markdown(f'<div class="alert-box {alert}">{text}</div>', unsafe_allow_html=True)
 
-    # AQUÍ ESTÁ EL BLOQUE DE MARGEN QUE FALTABA
     f1, f2 = st.columns(2)
     f1.markdown(f"<div class='metric-box'><div class='metric-title'>MARGEN USD</div><div class='metric-value'>${margen:,.0f}</div></div>", unsafe_allow_html=True)
     f2.markdown(f"<div class='metric-box'><div class='metric-title'>MARGEN %</div><div class='metric-value'>{margen_pct:.1f}%</div></div>", unsafe_allow_html=True)
@@ -154,7 +165,6 @@ with left:
     fig_gauge.update_layout(paper_bgcolor="#1c1c1c", font_color="white", height=300)
     st.plotly_chart(fig_gauge, use_container_width=True)
 
-# PANEL DERECHO (RESTAURADO COMPLETO)
 with right:
     st.markdown("<div class='brand-panel'>", unsafe_allow_html=True)
     st.markdown("### Brand Performance")
@@ -173,9 +183,4 @@ with right:
     st.markdown(f"<div class='metric-box'><div class='metric-title'>Confianza IA</div><div class='metric-value'>83.9%</div></div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-# LOGO (Ruta relativa)
-logo_path = "asset/logomgf.png"
-if os.path.exists(logo_path):
-    st.sidebar.image(Image.open(logo_path), width=200)
-
-st.sidebar.markdown("<div class='footer'>© 2026 MGF - Venezuela</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div class='footer'>© 2026 MGF - Propiedad Intelectual - Venezuela</div>", unsafe_allow_html=True)

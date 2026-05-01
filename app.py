@@ -9,19 +9,10 @@ import gdown
 import joblib
 
 # -----------------------
-# ANEXO PARA RENDER: CARGA DE MODELOS DESDE DRIVE
+# CONFIGURACIÓN DE DRIVE Y RUTAS
 # -----------------------
-# Crear carpetas si no existen
-if not os.path.exists('models'): os.makedirs('models')
-if not os.path.exists('sql'): os.makedirs('sql')
-if not os.path.exists('asset'): os.makedirs('asset')
+ID_DATABASE_DRIVE = "1NWqtcFr3B13sx0LCmInEE_7Vnl9kzQ1N"
 
-def download_from_drive(file_id, output):
-    if not os.path.exists(output):
-        url = f'https://drive.google.com/uc?id={file_id}'
-        gdown.download(url, output, quiet=False)
-
-# Diccionario con tus archivos .pkl en Drive
 SCALERS_DRIVE = {
     "random_forest_model.pkl": "15QYl2ozFjLOJ_ppB-6959imy_WAIfmw7",
     "encoder_proveedor.pkl": "1rjDLAB8od0vQ1m0HsrVvT0aomNHcV7Nv",
@@ -32,7 +23,18 @@ SCALERS_DRIVE = {
     "encoder_categoria_lottus.pkl": "126yZfMd4mNJ7pifG-d-LleizMkd32adD"
 }
 
-# Ejecutar descargas de los modelos desde Drive
+# Crear carpetas necesarias
+if not os.path.exists('models'): os.makedirs('models')
+if not os.path.exists('sql'): os.makedirs('sql')
+if not os.path.exists('asset'): os.makedirs('asset')
+
+def download_from_drive(file_id, output):
+    if not os.path.exists(output):
+        url = f'https://drive.google.com/uc?id={file_id}'
+        gdown.download(url, output, quiet=False)
+
+# Descargar Base de Datos y Modelos
+download_from_drive(ID_DATABASE_DRIVE, "sql/database.db")
 for nombre_archivo, id_drive in SCALERS_DRIVE.items():
     download_from_drive(id_drive, f"models/{nombre_archivo}")
 
@@ -62,7 +64,7 @@ h1, h2, h3 { color: white; font-weight: bold; }
 st.title("SMARTAUDIT AI – Luxury Price Audit")
 
 # -----------------------
-# DATABASE (Ruta corregida para Render y Mac)
+# CONEXIÓN A BASE DE DATOS
 # -----------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "sql", "database.db")
@@ -75,7 +77,7 @@ def load_data():
         df.columns = df.columns.str.lower()
         return df
     except Exception as e:
-        st.error(f"Error al cargar la tabla 'inventario': {e}")
+        st.error(f"Error al cargar la base de datos: {e}")
         st.stop()
 
 df = load_data()
@@ -94,11 +96,10 @@ def train_model(data):
 model = train_model(df)
 
 # -----------------------
-# SIDEBAR CASCADA
+# SIDEBAR
 # -----------------------
 st.sidebar.header("AUDIT INPUTS")
 
-# Logo (Ruta relativa directa de GitHub)
 logo_path = "asset/logomgf.png"
 if os.path.exists(logo_path):
     st.sidebar.image(Image.open(logo_path), width=200)
@@ -125,7 +126,7 @@ costo_input = st.sidebar.number_input("Landed Cost", value=float(row["costo"]))
 precio_input = st.sidebar.number_input("Precio Facturado", value=float(row["precio de venta"]))
 
 # -----------------------
-# CALCULOS
+# CÁLCULOS
 # -----------------------
 precio_ia = model.predict([[costo_input]])[0]
 desviacion = (precio_input - precio_ia) / precio_ia * 100
@@ -133,7 +134,7 @@ margen = precio_input - costo_input
 margen_pct = margen / precio_input * 100
 
 # -----------------------
-# LAYOUT
+# LAYOUT PRINCIPAL
 # -----------------------
 left, right = st.columns([2,1])
 

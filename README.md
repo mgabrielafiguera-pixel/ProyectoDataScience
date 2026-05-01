@@ -106,3 +106,13 @@ El objetivo de SMARTAUDIT AI es **identificar automáticamente desviaciones de p
 
 **María Gabriela Figuera Machuca** – © 2026 MGF – Venezuela  
 Propiedad intelectual protegida, logotipo incluido en la app.
+
+## #  SmartAudit AI - Luxury Price Audit
+
+**SmartAudit AI** es una solución de Inteligencia Artificial diseñada para automatizar la auditoría de precios y márgenes en el sector de alta gama (relojería y joyería).
+
+##  Aplicación en Vivo
+Puedes acceder a la aplicación interactiva desplegada en Render aquí:
+👉 **[Acceder a SmartAudit AI](https://smartaudit-mgf.onrender.com)**
+
+---v

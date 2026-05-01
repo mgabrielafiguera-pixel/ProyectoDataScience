@@ -20,9 +20,7 @@ data/raw/
 data/processed/
 
 # Modelos grandes
-models/modelo_inventario.pkl
-# O ignorar todos los modelos grandes si quieres
-# models/*.pkl
+models/
 
 # Archivos temporales
 *.log

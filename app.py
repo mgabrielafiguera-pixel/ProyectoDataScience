@@ -62,16 +62,21 @@ h1, h2, h3 { color: white; font-weight: bold; }
 st.title("SMARTAUDIT AI – Luxury Price Audit")
 
 # -----------------------
-# DATABASE (Ruta local de GitHub)
+# DATABASE (Ruta corregida para Render y Mac)
 # -----------------------
-DB_PATH = "sql/database.db"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "sql", "database.db")
 engine = create_engine(f"sqlite:///{DB_PATH}")
 
 @st.cache_data
 def load_data():
-    df = pd.read_sql("SELECT * FROM inventario", engine)
-    df.columns = df.columns.str.lower()
-    return df
+    try:
+        df = pd.read_sql("SELECT * FROM inventario", engine)
+        df.columns = df.columns.str.lower()
+        return df
+    except Exception as e:
+        st.error(f"Error al cargar la tabla 'inventario': {e}")
+        st.stop()
 
 df = load_data()
 df = df.dropna(subset=["costo", "precio de venta"])

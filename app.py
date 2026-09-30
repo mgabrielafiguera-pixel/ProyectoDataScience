@@ -2,41 +2,26 @@ import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import GroupShuffleSplit
+from sklearn.metrics import r2_score
 import plotly.graph_objects as go
 from PIL import Image
 import os
 import gdown
-import joblib
 
 # -----------------------
-# CONFIGURACIÓN DE DRIVE Y RUTAS
+# RUTAS Y DESCARGA DE LA BASE DE DATOS
 # -----------------------
+# La base de datos pesa ~200 MB (supera el límite de GitHub), por eso se descarga desde Google Drive.
 ID_DATABASE_DRIVE = "ID_ELIMINADO"
 
-SCALERS_DRIVE = {
-    "random_forest_model.pkl": "ID_ELIMINADO",
-    "encoder_proveedor.pkl": "ID_ELIMINADO",
-    "encoder_sku.pkl": "ID_ELIMINADO",
-    "encoder_marca.pkl": "ID_ELIMINADO",
-    "encoder_departamento.pkl": "ID_ELIMINADO",
-    "encoder_material.pkl": "ID_ELIMINADO",
-    "encoder_categoria_lottus.pkl": "ID_ELIMINADO"
-}
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "sql", "database.db")
+LOGO_PATH = os.path.join(BASE_DIR, "asset", "logomgf.png")
 
-# Crear carpetas necesarias
-if not os.path.exists('models'): os.makedirs('models')
-if not os.path.exists('sql'): os.makedirs('sql')
-if not os.path.exists('asset'): os.makedirs('asset')
-
-def download_from_drive(file_id, output):
-    if not os.path.exists(output):
-        url = f'https://drive.google.com/uc?id={file_id}'
-        gdown.download(url, output, quiet=False)
-
-# Descargar Base de Datos y Modelos
-download_from_drive(ID_DATABASE_DRIVE, "sql/database.db")
-for nombre_archivo, id_drive in SCALERS_DRIVE.items():
-    download_from_drive(id_drive, f"models/{nombre_archivo}")
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+if not os.path.exists(DB_PATH):
+    gdown.download(f"https://drive.google.com/uc?id={ID_DATABASE_DRIVE}", DB_PATH, quiet=False)
 
 # -----------------------
 # CONFIGURACIÓN DE PÁGINA Y ESTILOS
@@ -63,53 +48,77 @@ h1, h2, h3 { color: white; font-weight: bold; }
 
 st.title("SMARTAUDIT AI – Luxury Price Audit")
 
+def metric_box(col, titulo, valor):
+    col.markdown(f"<div class='metric-box'><div class='metric-title'>{titulo}</div><div class='metric-value'>{valor}</div></div>", unsafe_allow_html=True)
+
 # -----------------------
-# CONEXIÓN A BASE DE DATOS
+# CARGA DE DATOS
 # -----------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "sql", "database.db")
 engine = create_engine(f"sqlite:///{DB_PATH}")
+
+DEPARTAMENTOS_VISIBLES = ["RELOJERIA", "JOYERIA"]
+PROVEEDORES_VISIBLES = ["AUDEMARS PIGUET ET CIE.", "BELL & ROSS USA", "CHRONO AG", "CITIZEN LATINAMERICA CORP", "DAMIANI S.P.A", "DJULA S.A.R.L.", "MESSIKA USA INC", "MONTBLANC SIMPLO GMBH", "POMELLATO USA INC", "RICHARD PERLT VENEZUELA", "RICHEMONT BAUME MERCIER", "RICHEMONT NORTH AMERICA INC (IWC)", "RICHEMONT NORTH AMERICA INC (PANERAI)", "RICHEMONT NORTH AMERICA INC (RICHEMONT NORTH AMERICA INC (CARTIER))", "ROBERTO COIN S.P.A.", "SONGA ANTONIO SPA", "SWATCH AG", "TAG HEUER", "ZENITH"]
 
 @st.cache_data
 def load_data():
     try:
-        df = pd.read_sql("SELECT * FROM inventario", engine)
-        df.columns = df.columns.str.lower()
-        return df
+        inv = pd.read_sql("SELECT * FROM inventario", engine)
+        mensual = pd.read_sql("SELECT sku, mes, compras_mes, ventas_mes, inventario_final FROM inventario_mensual_final", engine)
+        oro = pd.read_sql("SELECT fecha, precio_onza_usd, precio_gramo_usd FROM precio_oro ORDER BY fecha DESC LIMIT 1", engine)
     except Exception as e:
         st.error(f"Error al cargar la base de datos: {e}")
         st.stop()
+    inv.columns = inv.columns.str.lower()
+    inv = inv.dropna(subset=["sku", "costo", "precio de venta"])
+    inv = inv[(inv["costo"] > 0) & (inv["precio de venta"] > 0)]
+    inv = inv[inv["departamento"].isin(DEPARTAMENTOS_VISIBLES)].copy()
+    inv["sku"] = inv["sku"].str.strip()
+    return inv, mensual, oro
 
-df = load_data()
-df = df.dropna(subset=["costo", "precio de venta"])
-df = df[(df["costo"] > 0) & (df["precio de venta"] > 0)]
+df, df_mensual, df_oro = load_data()
 
 # -----------------------
 # MODELO ML
 # -----------------------
+# Hiperparámetros elegidos con GridSearchCV en notebooks/explore.ipynb
+# (n_estimators=100, max_depth=None, min_samples_split=2).
+FEATURES_CAT = ["departamento", "marca_correcta", "familia"]
+
+def codificar(data, categorias):
+    X = data[["costo"]].copy()
+    for c in FEATURES_CAT:
+        X[c] = pd.Categorical(data[c], categories=categorias[c]).codes
+    return X
+
 @st.cache_resource
 def train_model(data):
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
-    model.fit(data[["costo"]], data["precio de venta"])
-    return model
+    categorias = {c: data[c].dropna().unique() for c in FEATURES_CAT}
+    X = codificar(data, categorias)
+    y = data["precio de venta"]
 
-model = train_model(df)
+    # Evaluación separando por SKU: el mismo producto aparece en varios meses del inventario
+    # y no debe estar a la vez en entrenamiento y en prueba.
+    train_idx, test_idx = next(GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=42).split(X, y, groups=data["sku"]))
+    params = dict(n_estimators=100, max_depth=None, min_samples_split=2, random_state=42, n_jobs=-1)
+    modelo_eval = RandomForestRegressor(**params).fit(X.iloc[train_idx], y.iloc[train_idx])
+    r2 = r2_score(y.iloc[test_idx], modelo_eval.predict(X.iloc[test_idx]))
+
+    modelo = RandomForestRegressor(**params).fit(X, y)
+    return modelo, categorias, r2
+
+model, categorias, r2_modelo = train_model(df)
 
 # -----------------------
 # SIDEBAR
 # -----------------------
 st.sidebar.header("AUDIT INPUTS")
 
-logo_path = "asset/logomgf.png"
-if os.path.exists(logo_path):
-    st.sidebar.image(Image.open(logo_path), width=200)
+if os.path.exists(LOGO_PATH):
+    st.sidebar.image(Image.open(LOGO_PATH), width=200)
 
-departamentos_visibles = ["RELOJERIA", "JOYERIA"]
-dep = st.sidebar.selectbox("Departamento", departamentos_visibles)
+dep = st.sidebar.selectbox("Departamento", DEPARTAMENTOS_VISIBLES)
 df_dep = df[df["departamento"] == dep]
-
-proveedores_visibles = ["AUDEMARS PIGUET ET CIE.", "BELL & ROSS USA", "CHRONO AG", "CITIZEN LATINAMERICA CORP", "DAMIANI S.P.A", "DJULA S.A.R.L.", "MESSIKA USA INC", "MONTBLANC SIMPLO GMBH", "POMELLATO USA INC", "RICHARD PERLT VENEZUELA", "RICHEMONT BAUME MERCIER", "RICHEMONT NORTH AMERICA INC (IWC)", "RICHEMONT NORTH AMERICA INC (PANERAI)", "RICHEMONT NORTH AMERICA INC (RICHEMONT NORTH AMERICA INC (CARTIER))", "ROBERTO COIN S.P.A.", "SONGA ANTONIO SPA", "SWATCH AG", "TAG HEUER", "ZENITH"]
-df_dep_filtrado = df_dep[df_dep["proveedor_correcto"].isin(proveedores_visibles)]
+df_dep_filtrado = df_dep[df_dep["proveedor_correcto"].isin(PROVEEDORES_VISIBLES)]
 
 if df_dep_filtrado.empty:
     st.sidebar.warning("No hay datos disponibles")
@@ -120,18 +129,25 @@ df_prov = df_dep_filtrado[df_dep_filtrado["proveedor_correcto"] == prov]
 marca = st.sidebar.selectbox("Marca", sorted(df_prov["marca_correcta"].dropna().unique()))
 df_marca = df_prov[df_prov["marca_correcta"] == marca]
 sku = st.sidebar.selectbox("SKU", sorted(df_marca["sku"].dropna().unique()))
-row = df_marca[df_marca["sku"] == sku].iloc[0]
+row = df_marca[df_marca["sku"] == sku].sort_values("fecha").iloc[-1]
 
 costo_input = st.sidebar.number_input("Landed Cost", value=float(row["costo"]))
 precio_input = st.sidebar.number_input("Precio Facturado", value=float(row["precio de venta"]))
 
+if not df_oro.empty:
+    oro = df_oro.iloc[0]
+    st.sidebar.markdown("**Precio internacional del oro**")
+    st.sidebar.write(f"${oro['precio_onza_usd']:,.2f} / onza · ${oro['precio_gramo_usd']:,.2f} / gramo")
+    st.sidebar.caption(f"Cierre del {pd.to_datetime(oro['fecha']).date()}")
+
 # -----------------------
 # CÁLCULOS
 # -----------------------
-precio_ia = model.predict([[costo_input]])[0]
+entrada = row[FEATURES_CAT].to_frame().T.assign(costo=costo_input)
+precio_ia = model.predict(codificar(entrada, categorias))[0]
 desviacion = (precio_input - precio_ia) / precio_ia * 100
 margen = precio_input - costo_input
-margen_pct = margen / precio_input * 100
+margen_pct = margen / precio_input * 100 if precio_input else 0
 
 # -----------------------
 # LAYOUT PRINCIPAL
@@ -140,53 +156,62 @@ left, right = st.columns([2,1])
 
 with left:
     c1, c2, c3 = st.columns(3)
-    c1.markdown(f"<div class='metric-box'><div class='metric-title'>PRECIO IA</div><div class='metric-value'>${precio_ia:,.0f}</div></div>", unsafe_allow_html=True)
-    c2.markdown(f"<div class='metric-box'><div class='metric-title'>Precio Facturado</div><div class='metric-value'>${precio_input:,.0f}</div></div>", unsafe_allow_html=True)
-    c3.markdown(f"<div class='metric-box'><div class='metric-title'>DESVIACIÓN</div><div class='metric-value'>{desviacion:.1f}%</div></div>", unsafe_allow_html=True)
+    metric_box(c1, "PRECIO IA", f"${precio_ia:,.0f}")
+    metric_box(c2, "Precio Facturado", f"${precio_input:,.0f}")
+    metric_box(c3, "DESVIACIÓN", f"{desviacion:.1f}%")
 
+    # Verde: ±5 % · Amarillo: 5–15 % · Rojo: > 15 % o < −5 % (sin margen)
     if desviacion < -5:
-        alert, text = "alert-red", "🔴 PRODUCTO VENDIDO SIN MARGEN DE GANANCIA.<br>Se requiere evaluación."
+        alert, text = "alert-red", "🔴 PRODUCTO VENDIDO POR DEBAJO DEL PRECIO IA.<br>Reportar a Finanzas."
+    elif desviacion > 15:
+        alert, text = "alert-red", "🔴 DESVIACIÓN ALTA SOBRE EL PRECIO IA.<br>Se requiere evaluación."
     elif desviacion > 5:
-        alert, text = "alert-green", "🟢 La marca no requiere auditoría. Precio dentro del rango IA ±5%."
-    else:
         alert, text = "alert-yellow", "🟡 NOTA: DESVIACIÓN MEDIA. Se establece protocolo de revisión."
+    else:
+        alert, text = "alert-green", "🟢 Precio dentro del rango IA ±5%. No requiere auditoría."
     st.markdown(f'<div class="alert-box {alert}">{text}</div>', unsafe_allow_html=True)
 
     f1, f2 = st.columns(2)
-    f1.markdown(f"<div class='metric-box'><div class='metric-title'>MARGEN USD</div><div class='metric-value'>${margen:,.0f}</div></div>", unsafe_allow_html=True)
-    f2.markdown(f"<div class='metric-box'><div class='metric-title'>MARGEN %</div><div class='metric-value'>{margen_pct:.1f}%</div></div>", unsafe_allow_html=True)
+    metric_box(f1, "MARGEN USD", f"${margen:,.0f}")
+    metric_box(f2, "MARGEN %", f"{margen_pct:.1f}%")
 
-    st.markdown("### Estacionalidad de ventas")
-    df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
-    trend_data = df[df["sku"] == sku].groupby(df["fecha"].dt.to_period("M").astype(str))["precio de venta"].sum()
-    st.line_chart(trend_data)
+    # Movimientos mensuales de los SKU de la marca
+    mov_marca = df_mensual[df_mensual["sku"].isin(df[df["marca_correcta"] == marca]["sku"].unique())]
+
+    st.markdown(f"### Estacionalidad de ventas – {marca}")
+    if mov_marca.empty:
+        st.info("No hay movimientos mensuales registrados para esta marca.")
+    else:
+        st.bar_chart(mov_marca.groupby("mes")["ventas_mes"].sum().rename("Unidades vendidas"))
 
     st.markdown("### Scoring de Riesgo IA")
     riesgo_pct = max(min(abs(desviacion), 100), 0)
     fig_gauge = go.Figure(go.Indicator(
         mode = "gauge+number", value = riesgo_pct,
         title = {'text': "Nivel de riesgo (%)", 'font': {'color': "white"}},
-        gauge = {'bar': {'color': "#d4af37"}, 'bgcolor': "#2a2a2a", 'steps': [{'range': [0, 5], 'color': "#1e4620"}, {'range': [5, 15], 'color': "#ffcc00"}, {'range': [15, 100], 'color': "#ff4d4d"}]}
+        gauge = {'axis': {'range': [0, 100]}, 'bar': {'color': "#d4af37"}, 'bgcolor': "#2a2a2a", 'steps': [{'range': [0, 5], 'color': "#1e4620"}, {'range': [5, 15], 'color': "#ffcc00"}, {'range': [15, 100], 'color': "#ff4d4d"}]}
     ))
     fig_gauge.update_layout(paper_bgcolor="#1c1c1c", font_color="white", height=300)
-    st.plotly_chart(fig_gauge, use_container_width=True)
+    st.plotly_chart(fig_gauge, width="stretch")
 
 with right:
     st.markdown("<div class='brand-panel'>", unsafe_allow_html=True)
     st.markdown("### Brand Performance")
     marca_df = df[df["marca_correcta"] == marca]
-    p_compra = marca_df["inventario final"].mean()
-    p_costo = marca_df["costo"].mean()
-    p_v_und = marca_df.groupby("sku")["precio de venta"].count().mean()
-    p_venta = marca_df["precio de venta"].mean()
-    rot = p_v_und / p_compra if p_compra != 0 else 0
+    n_meses = df_mensual["mes"].nunique()
+    compras_mes = mov_marca["compras_mes"].sum() / n_meses
+    ventas_mes = mov_marca["ventas_mes"].sum() / n_meses
+    # El inventario negativo son errores de registro: se cuenta como 0
+    inv_promedio = mov_marca["inventario_final"].clip(lower=0).groupby(mov_marca["mes"]).sum().mean() if not mov_marca.empty else 0
+    rot = ventas_mes * n_meses / inv_promedio if inv_promedio > 0 else 0
 
-    st.markdown(f"<div class='metric-box'><div class='metric-title'>Promedio Unidades Compradas</div><div class='metric-value'>{p_compra:.0f}</div></div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='metric-box'><div class='metric-title'>Promedio Precio Costo</div><div class='metric-value'>${p_costo:,.0f}</div></div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='metric-box'><div class='metric-title'>Promedio Unidades Vendidas</div><div class='metric-value'>{p_v_und:.0f}</div></div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='metric-box'><div class='metric-title'>Promedio Precio Venta</div><div class='metric-value'>${p_venta:,.0f}</div></div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='metric-box'><div class='metric-title'>Rotación</div><div class='metric-value'>{rot:.2f}x</div></div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='metric-box'><div class='metric-title'>Confianza IA</div><div class='metric-value'>83.9%</div></div>", unsafe_allow_html=True)
+    metric_box(st, "Unidades Compradas / mes", f"{compras_mes:.1f}")
+    metric_box(st, "Promedio Precio Costo", f"${marca_df['costo'].mean():,.0f}")
+    metric_box(st, "Unidades Vendidas / mes", f"{ventas_mes:.1f}")
+    metric_box(st, "Promedio Precio Venta", f"${marca_df['precio de venta'].mean():,.0f}")
+    metric_box(st, "Inventario Promedio", f"{inv_promedio:,.0f} und")
+    metric_box(st, f"Rotación ({n_meses} meses)", f"{rot:.2f}x")
+    metric_box(st, "Confianza IA (R²)", f"{r2_modelo * 100:.1f}%")
     st.markdown("</div>", unsafe_allow_html=True)
 
 st.sidebar.markdown("<div class='footer'>© 2026 MGF - Propiedad Intelectual - Venezuela</div>", unsafe_allow_html=True)

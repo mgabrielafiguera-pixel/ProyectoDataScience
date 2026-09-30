@@ -1,6 +1,7 @@
 import sqlite3
+from pathlib import Path
 
-RUTA_DB = "/Users/mariafiguera/Downloads/ProyectoDataScience/sql/database.db"
+RUTA_DB = Path(__file__).resolve().parent.parent / "sql" / "database.db"
 
 conn = sqlite3.connect(RUTA_DB)
 cur = conn.cursor()

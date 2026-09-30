@@ -35,13 +35,16 @@ En el sector de lujo, **mantener precios consistentes y proteger los márgenes e
 - Modelos comparados: Regresión Lineal, Random Forest y Gradient Boosting.
 - Modelo final: **Random Forest Regressor** optimizado con `GridSearchCV`
   (`n_estimators=100`, `max_depth=None`, `min_samples_split=2`).
-- Resultados en el conjunto de prueba (precio escalado):
+- Features: `costo` + departamento, marca, SKU, familia, material y categoría Lottus.
+- Resultados en el conjunto de prueba del notebook (precio escalado con RobustScaler):
 
 | Métrica | Valor |
 |---|---|
 | R² | **0.75** |
 | MAE | 0.43 |
 | RMSE | 3.94 |
+
+**Modelo en la app:** el modelo del notebook pesa demasiado para GitHub, así que la app entrena al arrancar un Random Forest con los mismos hiperparámetros sobre `costo`, departamento, marca y familia (relojería y joyería). Su precisión se mide separando los SKU de entrenamiento y de prueba (el mismo producto aparece en varios meses del inventario) y se muestra en vivo como **Confianza IA (R²)**, ~96 %.
 
 ### Clasificación de riesgo
 
@@ -57,9 +60,9 @@ Desviación (%) = (precio facturado − precio IA) / precio IA × 100
 
 Desarrollada con **Streamlit**, con tres paneles:
 
-1. **Sidebar:** departamento, proveedor, marca, SKU, landed cost, precio facturado y precio internacional del oro.
-2. **Panel central:** KPIs de precio IA, precio facturado y desviación; alertas por color; margen USD/%; gráfico de estacionalidad y gauge de riesgo.
-3. **Panel derecho:** *Brand Performance* (unidades compradas y vendidas, precios, rotación, inventario promedio, tier de precio y confianza del modelo).
+1. **Sidebar:** departamento, proveedor, marca, SKU, landed cost, precio facturado y último precio internacional del oro.
+2. **Panel central:** KPIs de precio IA, precio facturado y desviación; alertas por color; margen USD/%; unidades vendidas por mes de la marca (estacionalidad) y gauge de riesgo.
+3. **Panel derecho:** *Brand Performance* (unidades compradas y vendidas por mes, precio promedio de costo y venta, inventario promedio, rotación y Confianza IA).
 
 ## 6. Estructura del repositorio
 
@@ -71,6 +74,13 @@ Desarrollada con **Streamlit**, con tres paneles:
 └── requirements.txt
 ```
 
+### Datos y modelos (no incluidos en el repositorio)
+
+Los datos son información interna de la empresa y la base de datos pesa ~200 MB (GitHub no admite archivos de más de 100 MB), por eso `data/`, `sql/` y `models/` están en `.gitignore`.
+
+- **Para la app:** no hay que hacer nada; `app.py` descarga `sql/database.db` desde Google Drive la primera vez que se ejecuta.
+- **Para el notebook:** los Excel originales de `data/raw/` se piden a la autora. Con la base descargada por la app se pueden ejecutar las celdas que leen de SQL.
+
 ## 7. Cómo ejecutarlo
 
 ```bash
@@ -80,7 +90,7 @@ streamlit run app.py
 
 ## 8. Próximos pasos
 
-- Servir los modelos grandes desde almacenamiento externo en lugar de GitHub.
+- Guardar el modelo completo del notebook en almacenamiento externo y cargarlo en la app en lugar de reentrenar.
 - Predicciones multivariables que incluyan inventario y estacionalidad.
 - Paneles más interactivos con mini-gráficos y KPIs dinámicos.
 

@@ -19,14 +19,35 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "sql", "database.db")
 LOGO_PATH = os.path.join(BASE_DIR, "asset", "logomgf.png")
 
-os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-if not os.path.exists(DB_PATH):
-    gdown.download(f"https://drive.google.com/uc?id={ID_DATABASE_DRIVE}", DB_PATH, quiet=False)
+st.set_page_config(page_title="SMARTAUDIT AI", layout="wide")
+
+@st.cache_resource(show_spinner="Descargando la base de datos (~200 MB), solo la primera vez...")
+def descargar_base_datos():
+    # Una sola descarga por servidor aunque haya varias sesiones abiertas.
+    # Se baja a un archivo temporal y solo se renombra si llegó completa: Drive a veces corta
+    # la conexión y un archivo a medias (o vacío) haría fallar la app en todos los arranques.
+    if os.path.exists(DB_PATH) and os.path.getsize(DB_PATH) > 0:
+        return True
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    temporal = DB_PATH + ".descarga"
+    for _ in range(3):
+        try:
+            gdown.download(f"https://drive.google.com/uc?id={ID_DATABASE_DRIVE}", temporal, quiet=True, resume=True)
+            if os.path.getsize(temporal) > 0:
+                os.replace(temporal, DB_PATH)
+                return True
+        except Exception:
+            pass
+    return False
+
+if not descargar_base_datos():
+    descargar_base_datos.clear()
+    st.error("No se pudo descargar la base de datos desde Google Drive. Recarga la página para reintentar.")
+    st.stop()
 
 # -----------------------
-# CONFIGURACIÓN DE PÁGINA Y ESTILOS
+# ESTILOS
 # -----------------------
-st.set_page_config(page_title="SMARTAUDIT AI", layout="wide")
 
 st.markdown("""
 <style>

@@ -44,7 +44,7 @@ En el sector de lujo, **mantener precios consistentes y proteger los márgenes e
 | MAE | 0.43 |
 | RMSE | 3.94 |
 
-**Modelo en la app:** el modelo del notebook pesa demasiado para GitHub, así que la app entrena al arrancar un Random Forest con los mismos hiperparámetros sobre `costo`, departamento, marca y familia (relojería y joyería). Su precisión se mide separando los SKU de entrenamiento y de prueba (el mismo producto aparece en varios meses del inventario) y se muestra en vivo como **Confianza IA (R²)**, ~96 %.
+**Modelo en la app:** el modelo del notebook pesa demasiado para GitHub, así que la app entrena al arrancar un Random Forest con los mismos hiperparámetros sobre `costo`, departamento, marca y familia (relojería y joyería). Su precisión se mide separando los SKU de entrenamiento y de prueba (el mismo producto aparece en varios meses del inventario) y se muestra en vivo como **Confianza IA (R²)**, ~89 %.
 
 ### Clasificación de riesgo
 
@@ -78,7 +78,7 @@ Desarrollada con **Streamlit**, con tres paneles:
 
 Los datos son información interna de la empresa y la base de datos pesa ~200 MB (GitHub no admite archivos de más de 100 MB), por eso `data/`, `sql/` y `models/` están en `.gitignore`.
 
-- **Para la app:** no hay que hacer nada; `app.py` descarga `sql/database.db` desde Google Drive la primera vez que se ejecuta.
+- **Para la app:** no hay que hacer nada; `app.py` descarga desde Google Drive una **versión reducida** de la base (~3 MB) la primera vez que se ejecuta. Solo contiene lo que la app muestra: relojería y joyería de los proveedores seleccionados, los movimientos mensuales de esos SKU y el precio del oro.
 - **Para el notebook:** los Excel originales de `data/raw/` se piden a la autora. Con la base descargada por la app se pueden ejecutar las celdas que leen de SQL.
 
 ## 7. Cómo ejecutarlo

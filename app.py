@@ -12,8 +12,8 @@ import gdown
 # -----------------------
 # RUTAS Y DESCARGA DE LA BASE DE DATOS
 # -----------------------
-# La base de datos pesa ~200 MB (supera el límite de GitHub), por eso se descarga desde Google Drive.
-ID_DATABASE_DRIVE = "ID_ELIMINADO"
+# Versión reducida de la base de datos (solo lo que muestra la app): los datos completos son confidenciales.
+ID_DATABASE_DRIVE = "1QBJNi7SIULQKNE1rBz_aX63__spKcHfm"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "sql", "database.db")
@@ -21,7 +21,7 @@ LOGO_PATH = os.path.join(BASE_DIR, "asset", "logomgf.png")
 
 st.set_page_config(page_title="SMARTAUDIT AI", layout="wide")
 
-@st.cache_resource(show_spinner="Descargando la base de datos (~200 MB), solo la primera vez...")
+@st.cache_resource(show_spinner="Descargando la base de datos, solo la primera vez...")
 def descargar_base_datos():
     # Una sola descarga por servidor aunque haya varias sesiones abiertas.
     # Se baja a un archivo temporal y solo se renombra si llegó completa: Drive a veces corta

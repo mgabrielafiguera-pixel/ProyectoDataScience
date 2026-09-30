@@ -64,6 +64,7 @@ h1, h2, h3 { color: white; font-weight: bold; }
 .footer { color:#888; font-size:12px; text-align:center; margin-top:20px; }
 [data-testid="stSidebar"] { background-color: #1c1c1c; }
 [data-testid="stSidebar"] label { color: white !important; }
+[data-testid="stSidebar"] h2, [data-testid="stSidebar"] p { color: white !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -157,9 +158,9 @@ precio_input = st.sidebar.number_input("Precio Facturado", value=float(row["prec
 
 if not df_oro.empty:
     oro = df_oro.iloc[0]
-    st.sidebar.markdown("**Precio internacional del oro**")
-    st.sidebar.write(f"${oro['precio_onza_usd']:,.2f} / onza · ${oro['precio_gramo_usd']:,.2f} / gramo")
-    st.sidebar.caption(f"Cierre del {pd.to_datetime(oro['fecha']).date()}")
+    # &#36; en lugar de "$": con dos "$" en un texto Streamlit lo muestra como fórmula matemática
+    metric_box(st.sidebar, "ORO INTERNACIONAL (USD / ONZA)", f"&#36;{oro['precio_onza_usd']:,.2f}")
+    st.sidebar.markdown(f"&#36;{oro['precio_gramo_usd']:,.2f} / gramo · cierre del {pd.to_datetime(oro['fecha']).date()}", unsafe_allow_html=True)
 
 # -----------------------
 # CÁLCULOS
@@ -200,8 +201,8 @@ with left:
     mov_marca = df_mensual[df_mensual["sku"].isin(df[df["marca_correcta"] == marca]["sku"].unique())]
 
     st.markdown(f"### Estacionalidad de ventas – {marca}")
-    if mov_marca.empty:
-        st.info("No hay movimientos mensuales registrados para esta marca.")
+    if mov_marca.empty or mov_marca["ventas_mes"].sum() == 0:
+        st.markdown("<div class='metric-box'><div class='metric-title'>Sin ventas registradas para esta marca en los últimos meses</div></div>", unsafe_allow_html=True)
     else:
         st.bar_chart(mov_marca.groupby("mes")["ventas_mes"].sum().rename("Unidades vendidas"))
 

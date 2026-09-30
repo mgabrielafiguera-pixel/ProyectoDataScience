@@ -15,7 +15,7 @@ En el sector de lujo, **mantener precios consistentes y proteger los márgenes e
 ## 2. Datos
 
 - Origen: **inventario, ventas y compras internos** almacenados en una base de datos SQL (~148.000 filas combinadas, 78 variables).
-- Fuentes externas: precio internacional del oro (yfinance) y tendencias de búsqueda (Google Trends).
+- Fuentes externas: precio internacional del oro (yfinance), tendencias de búsqueda (Google Trends) y **scraping de precios de mercado** de 426 relojes de 10 marcas en European Watch Company ([`scripts/scraping_relojes.py`](scripts/scraping_relojes.py) → [`data/external/precios_mercado_relojes.csv`](data/external/precios_mercado_relojes.csv)).
 - Columnas clave:
   - Inventario: `sku`, `costo`, `precio de venta`, `departamento`, `marca`, `proveedor`
   - Ventas: `referencia proveedor`, `precio de venta unitario`, `cantidad`, `fecha`
@@ -29,6 +29,7 @@ En el sector de lujo, **mantener precios consistentes y proteger los márgenes e
 - **Estacionalidad** mensual de ventas que afecta la evaluación de riesgo.
 - Marcas con alta consistencia de precios frente a marcas con mayor desviación.
 - Los contrastes de hipótesis confirmaron la relación entre **costo y precio de venta**.
+- En el mercado secundario, el **material** determina el precio: los relojes de oro (mediana $33,800) cuestan unas 3 veces más que los de acero ($10,350); prueba Mann-Whitney, p < 0.001.
 
 ## 4. Modelo y resultados
 
@@ -69,7 +70,8 @@ Desarrollada con **Streamlit**, con tres paneles:
 ```
 ├── app.py                  # Aplicación Streamlit
 ├── notebooks/explore.ipynb # EDA, modelado y evaluación
-├── scripts/                # Utilidades para inspeccionar y corregir la base SQL
+├── data/external/          # Precios de mercado obtenidos por scraping (datos públicos)
+├── scripts/                # Scraping de precios y utilidades para la base SQL
 ├── asset/                  # Logo
 └── requirements.txt
 ```

@@ -10,6 +10,8 @@ gdown
 
 # Notebook (EDA, estadística y obtención de datos externos)
 jupyter
+requests
+beautifulsoup4
 openpyxl
 matplotlib
 seaborn
